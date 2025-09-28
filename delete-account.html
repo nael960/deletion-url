@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Delete Account</title>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; background-color: #f4f4f4; }
+        .container { background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); text-align: center; max-width: 450px; }
+        h1 { color: #d32f2f; }
+        p { color: #555; line-height: 1.6; }
+        .button { background-color: #d32f2f; color: white; border: none; padding: 12px 20px; border-radius: 5px; font-size: 16px; cursor: pointer; transition: background-color 0.3s; }
+        .button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status { margin-top: 20px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Account Deletion</h1>
+        <p><strong>Warning:</strong> This action is permanent and cannot be undone. Clicking the button below will permanently delete your account and all associated data, including personalized videos, calls, and chat history.</p>
+        <p>Please sign in with Google to confirm your identity before proceeding.</p>
+
+        <div id="g_id_onload"
+             data-client_id="130055818574-tumb3uv47n51bs5512bnq77u6t4p09vi.apps.googleusercontent.com"
+             data-callback="handleCredentialResponse"
+             data-auto_prompt="false">
+        </div>
+        <div class="g_id_signin"
+             data-type="standard"
+             data-size="large"
+             data-theme="outline"
+             data-text="sign_in_with"
+             data-shape="rectangular"
+             data-logo_alignment="left">
+        </div>
+
+        <hr style="margin: 25px 0;">
+
+        <button id="deleteButton" class="button" disabled>Delete My Account</button>
+        <p id="status"></p>
+    </div>
+
+    <script src="https://accounts.google.com/gsi/client" async defer></script>
+
+    <script>
+        // --- CONFIGURATION: UPDATE THESE VALUES ---
+        const YOUR_API_BASE_URL = "https://santa-api-ugb6.onrender.com"; // Your FastAPI server URL
+        const YOUR_APP_ID = "com.santaclaus.personalizedvideocall"; // The value for the X-App-ID header
+        // --- END CONFIGURATION ---
+
+        let idToken = null;
+        const deleteButton = document.getElementById('deleteButton');
+        const statusEl = document.getElementById('status');
+
+        // This function is called by the Google library after a successful sign-in
+        function handleCredentialResponse(response) {
+            console.log("Encoded JWT ID token: " + response.credential);
+            idToken = response.credential; // Store the token
+            
+            // Enable the delete button and update status
+            deleteButton.disabled = false;
+            statusEl.textContent = "You are signed in. You can now delete your account.";
+            statusEl.style.color = "green";
+        }
+
+        // Add click listener to the delete button
+        deleteButton.addEventListener('click', async () => {
+            if (!idToken) {
+                statusEl.textContent = "Please sign in first.";
+                statusEl.style.color = "red";
+                return;
+            }
+
+            // Confirm with the user one last time
+            if (!confirm("Are you absolutely sure you want to permanently delete your account? This cannot be undone.")) {
+                return;
+            }
+
+            statusEl.textContent = "Processing deletion...";
+            deleteButton.disabled = true;
+
+            try {
+                const response = await fetch(`${YOUR_API_BASE_URL}/api/v2/auth/delete-account`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-App-ID': YOUR_APP_ID 
+                    },
+                    body: JSON.stringify({
+                        id_token: idToken
+                    })
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    statusEl.textContent = "Success! Your account deletion has been initiated. All data will be removed shortly.";
+                    statusEl.style.color = "green";
+                } else {
+                    // Show a more specific error from the server if available
+                    statusEl.textContent = `Error: ${result.detail || "Could not process request."}`;
+                    statusEl.style.color = "red";
+                    deleteButton.disabled = false; // Re-enable button on failure
+                }
+            } catch (error) {
+                console.error("Deletion failed:", error);
+                statusEl.textContent = "An unexpected error occurred. Please try again later.";
+                statusEl.style.color = "red";
+                deleteButton.disabled = false; // Re-enable button on failure
+            }
+        });
+    </script>
+</body>
+</html>
